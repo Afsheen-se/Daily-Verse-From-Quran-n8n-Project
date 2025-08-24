@@ -1,0 +1,380 @@
+{
+  "name": "test",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            },
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        32,
+        -128
+      ],
+      "id": "2ed03e5d-3092-46cd-8f1c-507df20455fe",
+      "name": "Daily Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyBRy4o9HeIGzSgqkL3US55coWFk_zvKGIk",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\": [\n        {\n          \"text\": \"Pick ONE random Quranic verse and make sure it is different from the verse that you have given before and make sure to give correct references means correct chapter name, and verse number. There is no space for error because authetic information is required.You can start from the very first chapter and its first verse then on every day you can go for the next verse . in this way you can easily fetch correct verse with correct chapter name and verse number. You should fetch real data based on existing book Quran as it is available on web as well and Quran can never change. Output only JSON in this format: {\\\"chapter\\\": \\\"Chapter name (e.g. Al-Baqarah)\\\", \\\"verse_number\\\": \\\"2:255\\\", \\\"verse\\\": \\\"Arabic verse text\\\", \\\"translation\\\": \\\"English translation\\\"}\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -128
+      ],
+      "id": "3b559569-7aee-4136-b261-ffa5242fdf4b",
+      "name": "Getting Verse and Translation using Gemini flash"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $json[\"candidates\"][0][\"content\"][\"parts\"][0][\"text\"];\n\n// Clean and parse JSON (remove backticks if Gemini adds them)\nconst clean = output.replace(/```json|```/g, \"\").trim();\nlet parsed = {};\n\ntry {\n  parsed = JSON.parse(clean);\n} catch (e) {\n  parsed = {};\n}\n\nreturn [\n  {\n    json: {\n      chapter: parsed.chapter || \"Unknown\",\n      verse_number: parsed.verse_number || \"N/A\",\n      verse: parsed.verse || \"Not found\",\n      translation: parsed.translation || \"Not found\"\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -128
+      ],
+      "id": "852db1cf-e2e2-4575-b5cf-6508afae4843",
+      "name": "geeting all the things formatted"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.alquran.cloud/v1/ayah/{{$json[\"verse_number\"]}}/ar.alafasy",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        656,
+        -128
+      ],
+      "id": "5cfdb702-ef56-4df2-942a-290cca3b4d15",
+      "name": "Fetch recitation"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the audio URL from the API response\nconst audioUrl = $json[\"data\"][\"audio\"] || \"\";\n\n// Return clean output\nreturn [\n  {\n    json: {\n      chapter: $json[\"data\"][\"edition\"][\"englishName\"],\n      verse_number: $json[\"data\"][\"number\"],\n      verse_text: $json[\"data\"][\"text\"],\n      audio: audioUrl\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        -128
+      ],
+      "id": "29b8e489-33a9-42a5-bf72-2d8867d5ec6f",
+      "name": "Extract & store the audio from URL"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4eb5b322-8d38-480d-b963-de32676eada5",
+              "name": "verse",
+              "value": "={{ $json.verse }}",
+              "type": "string"
+            },
+            {
+              "id": "c097e14a-8f86-4043-bfd4-30d0deeb899f",
+              "name": "translation",
+              "value": "={{ $json.translation }}",
+              "type": "string"
+            },
+            {
+              "id": "4ce95231-5e9e-4230-bae8-94bcac613938",
+              "name": "chapter",
+              "value": "={{ $json.chapter }}",
+              "type": "string"
+            },
+            {
+              "id": "533916fb-7e15-40bd-8da4-9c234c49008c",
+              "name": "verse_number",
+              "value": "={{ $json.verse_number }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        688,
+        16
+      ],
+      "id": "48467611-730e-4dda-a0ba-d3732d486764",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "function esc(s){return (s||\"\").replace(/&/g,\"&amp;\").replace(/</g,\"&lt;\").replace(/>/g,\"&gt;\").replace(/\"/g,\"&quot;\");}\nreturn [{\n  json: {\n    verse_html: esc($json.verse).replace(/\\n/g,\"<br>\"),\n    translation_html: esc($json.translation).replace(/\\n/g,\"<br>\"),\n    footer_html: `${$json.chapter} • ${$json.verse_number}`\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        16
+      ],
+      "id": "10db5c58-9dd6-4973-b462-b9aa7bfcf0b6",
+      "name": "Prepare Poster Text"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hcti.io/v1/image",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "html",
+              "value": "=<!doctype html> <html lang=\"ar\" dir=\"rtl\">   <head>     <meta charset=\"utf-8\">     <style>       @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@400;600&display=swap');       body { margin:0; padding:0; }       .card {         width:1080px; height:1350px;         background: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)),           url('https://images.unsplash.com/photo-1523731407965-2430cd12f5e4?q=80&w=1080&auto=format&fit=crop');         background-size:cover; background-position:center;         display:flex; flex-direction:column; justify-content:space-between;         color:#fff; padding:80px;       }       .verse {         font-family:'Amiri', serif;         font-size:52px; line-height:1.5; font-weight:700;         text-align:center; direction:rtl;       }       .translation {         font-family:'Inter', sans-serif;         font-size:34px; line-height:1.6; margin-top:30px;         text-align:center; direction:ltr;       }       .footer {         font-family:'Inter', sans-serif; font-size:28px; color:#E5E7EB;         text-align:center; margin-top:40px;       }     </style>   </head>   <body>     <div class=\"card\">       <div class=\"verse\">{{ $json.verse_html }}</div>       <div class=\"translation\">{{ $json.translation_html }}</div>       <div class=\"footer\">{{ $json.footer_html }}</div>     </div>   </body> </html>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1104,
+        16
+      ],
+      "id": "f2690fb9-b849-4d5d-8f2d-1b0d648a9170",
+      "name": "Build Poster HTML to IMAGE",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "PCx7prOCAVa3uJvm",
+          "name": "HCTI Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "652e47ba-af5f-4cab-98f7-119a6603351c",
+              "name": "caption",
+              "value": "=={{ $json.footer_html + \"\\n\\n\" + $json.translation_html }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        928,
+        256
+      ],
+      "id": "5f5ec839-0c6a-420c-8fb6-e77de944e5a2",
+      "name": "Make Caption"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        16
+      ],
+      "id": "707ce3ed-2fab-490d-8675-3009a36c64bd",
+      "name": "Download Poster"
+    },
+    {
+      "parameters": {
+        "name": "=={{ ($node[\"Prepare Poster Text\"].json[\"footer_html\"] || \"quran-poster\").replace(/[^\\w\\-]+/g,\"_\") + \".png\" }}\n",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "12Uw6vtTQm62Zrd3J6t1MtSg0_WNQIUxi",
+          "mode": "list",
+          "cachedResultName": "N8N Project ",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/12Uw6vtTQm62Zrd3J6t1MtSg0_WNQIUxi"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1312,
+        304
+      ],
+      "id": "b65e5523-162e-4f1a-94a2-b9230487d2af",
+      "name": "Upload Node",
+      "retryOnFail": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "CfsiyGq0BKdhZ87s",
+          "name": "Google Drive account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Getting Verse and Translation using Gemini flash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Getting Verse and Translation using Gemini flash": {
+      "main": [
+        [
+          {
+            "node": "geeting all the things formatted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "geeting all the things formatted": {
+      "main": [
+        [
+          {
+            "node": "Fetch recitation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch recitation": {
+      "main": [
+        [
+          {
+            "node": "Extract & store the audio from URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & store the audio from URL": {
+      "main": [
+        []
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Prepare Poster Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Poster Text": {
+      "main": [
+        [
+          {
+            "node": "Make Caption",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Poster HTML to IMAGE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Poster HTML to IMAGE": {
+      "main": [
+        [
+          {
+            "node": "Download Poster",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make Caption": {
+      "main": [
+        []
+      ]
+    },
+    "Download Poster": {
+      "main": [
+        [
+          {
+            "node": "Upload Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "992493fa-6377-4b4b-adb2-10ed6bd991c9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9b956486b3eac90ffa31d75666ba7137850ab98e04b99ee04622fbc95a6b0763"
+  },
+  "id": "v1Gxy4alhlNmcErb",
+  "tags": []
+}
